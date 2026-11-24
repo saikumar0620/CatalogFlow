@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from models import Product
-from database import session
+from database import session,engine
+import database_models
 app=FastAPI()
-
+database_models.Base.metadata.create_all
 @app.get("/")
 def greet():
   return "welcome 1st page"
