@@ -33,3 +33,11 @@ elif db_url.startswith("postgresql://"):
 
 engine = create_engine(db_url, pool_pre_ping=True)
 session = sessionmaker(autoflush=False, autocommit=False, bind=engine)
+
+
+def get_db():
+  db = session()
+  try:
+    yield db
+  finally:
+    db.close()

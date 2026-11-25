@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { request } from './api/products'
+import { fetchCurrentUser, getToken, request, setToken } from './api/products'
+import AuthModal from './components/auth/AuthModal'
 import Icon from './components/common/Icon'
 import ToastStack from './components/common/ToastStack'
 import Sidebar from './components/layout/Sidebar'
@@ -19,7 +20,19 @@ function App() {
   const [dialog, setDialog] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [user, setUser] = useState(null)
+  const [authOpen, setAuthOpen] = useState(false)
   const { toasts, addToast, dismissToast } = useToasts()
+
+  useEffect(() => {
+    if (!getToken()) return
+    fetchCurrentUser()
+      .then((currentUser) => setUser(currentUser))
+      .catch(() => {
+        setToken('')
+        setUser(null)
+      })
+  }, [])
 
   const loadProducts = useCallback(async ({ notify = false } = {}) => {
     setLoading(true)
@@ -45,12 +58,21 @@ function App() {
   const stockValue = products.reduce((total, product) => total + Number(product.price || 0) * Number(product.quantity || 0), 0)
   const lowStockCount = products.filter((product) => Number(product.quantity) <= 3).length
 
+  function requireAuth() {
+    if (user) return true
+    setAuthOpen(true)
+    addToast('Please sign in to modify products.', 'info')
+    return false
+  }
+
   function openCreate() {
+    if (!requireAuth()) return
     setForm(emptyForm)
     setDialog({ mode: 'create' })
   }
 
   function openEdit(product) {
+    if (!requireAuth()) return
     setForm({
       name: product.name,
       description: product.description,
@@ -91,16 +113,28 @@ function App() {
   }
 
   async function deleteProduct(product) {
+    if (!requireAuth()) return
     if (!window.confirm(`Delete ${product.name} from inventory?`)) return
     try {
       await request(`/product/${product.id}`, { method: 'DELETE' })
       addToast(`Deleted "${product.name}" from inventory.`, 'info')
       await loadProducts()
     } catch (err) {
+      if (err.status === 401) {
+        setToken('')
+        setUser(null)
+        setAuthOpen(true)
+      }
       const msg = err.message || 'Could not delete product. Please try again.'
       setError(msg)
       addToast(msg, 'error')
     }
+  }
+
+  function handleLogout() {
+    setToken('')
+    setUser(null)
+    addToast('Signed out.', 'info')
   }
 
   return (
@@ -108,7 +142,7 @@ function App() {
       <Sidebar productCount={products.length} offline={Boolean(error)} />
 
       <main className="main-content" id="top">
-        <Topbar />
+        <Topbar user={user} onOpenAuth={() => setAuthOpen(true)} onLogout={handleLogout} />
 
         <section className="page-wrap">
           <div className="page-heading">
@@ -162,6 +196,15 @@ function App() {
         error={error}
         onSubmit={saveProduct}
         onClose={() => setDialog(null)}
+      />
+
+      <AuthModal
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onSuccess={(signedInUser, message) => {
+          setUser(signedInUser)
+          addToast(message, 'success')
+        }}
       />
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
