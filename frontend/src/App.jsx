@@ -41,8 +41,8 @@ function App() {
       const data = await request('/products')
       setProducts(Array.isArray(data) ? data : [])
       if (notify) addToast('Inventory refreshed.', 'info')
-    } catch (err) {
-      setError('Could not connect to the inventory API. Make sure FastAPI is running at 127.0.0.1:8000.')
+    } catch {
+      setError('Could not connect to the inventory API. Please check your connection and try again.')
       if (notify) addToast('Failed to refresh inventory.', 'error')
     } finally {
       setLoading(false)
@@ -86,16 +86,15 @@ function App() {
     event.preventDefault()
     setSaving(true)
     setError('')
+    const isEdit = dialog.mode === 'edit'
     const body = {
-      id: dialog.mode === 'edit' ? dialog.product.id : Math.max(0, ...products.map((item) => Number(item.id))) + 1,
       name: form.name.trim(),
       description: form.description.trim(),
       price: Number(form.price),
       quantity: Number(form.quantity),
     }
     try {
-      const isEdit = dialog.mode === 'edit'
-      await request(isEdit ? `/product?id=${body.id}` : '/product', {
+      await request(isEdit ? `/product?id=${dialog.product.id}` : '/product', {
         method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -104,6 +103,12 @@ function App() {
       addToast(isEdit ? `Updated "${body.name}".` : `Added "${body.name}" to inventory.`, 'success')
       await loadProducts()
     } catch (err) {
+      if (err.status === 401) {
+        setToken('')
+        setUser(null)
+        setDialog(null)
+        setAuthOpen(true)
+      }
       const msg = err.message || 'Could not save product. Please try again.'
       setError(msg)
       addToast(msg, 'error')
@@ -126,6 +131,28 @@ function App() {
         setAuthOpen(true)
       }
       const msg = err.message || 'Could not delete product. Please try again.'
+      setError(msg)
+      addToast(msg, 'error')
+    }
+  }
+
+  async function adjustStock(product, delta) {
+    if (!requireAuth()) return
+    try {
+      const updated = await request(`/product/${product.id}/stock`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delta }),
+      })
+      setProducts((prev) => prev.map((item) => (item.id === product.id ? updated : item)))
+      addToast(`Updated stock for "${product.name}" (${updated.quantity} units).`, 'info')
+    } catch (err) {
+      if (err.status === 401) {
+        setToken('')
+        setUser(null)
+        setAuthOpen(true)
+      }
+      const msg = err.message || 'Could not adjust stock.'
       setError(msg)
       addToast(msg, 'error')
     }
@@ -180,6 +207,7 @@ function App() {
             onRefresh={() => loadProducts({ notify: true })}
             onEdit={openEdit}
             onDelete={deleteProduct}
+            onAdjustStock={adjustStock}
           />
 
           <footer className="page-footer">

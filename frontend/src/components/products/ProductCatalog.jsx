@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import Icon from '../common/Icon'
 
 export default function ProductCatalog({
@@ -9,7 +10,20 @@ export default function ProductCatalog({
   onRefresh,
   onEdit,
   onDelete,
+  onAdjustStock,
 }) {
+  const searchInputRef = useRef(null)
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        searchInputRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
   return (
     <section className="catalog-card">
       <div className="catalog-header">
@@ -30,6 +44,7 @@ export default function ProductCatalog({
         <div className="search-box">
           <Icon name="search" size={17} />
           <input
+            ref={searchInputRef}
             aria-label="Search products"
             placeholder="Search products..."
             value={query}
@@ -113,10 +128,31 @@ export default function ProductCatalog({
                     })}
                   </td>
                   <td>
-                    <span className={`stock-pill ${Number(product.quantity) <= 3 ? 'low' : ''}`}>
-                      <i />
-                      {product.quantity} units
-                    </span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        style={{ width: '24px', height: '24px' }}
+                        title={`Decrease stock for ${product.name}`}
+                        disabled={Number(product.quantity) <= 0}
+                        onClick={() => onAdjustStock(product, -1)}
+                      >
+                        -
+                      </button>
+                      <span className={`stock-pill ${Number(product.quantity) <= 3 ? 'low' : ''}`}>
+                        <i />
+                        {product.quantity} units
+                      </span>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        style={{ width: '24px', height: '24px' }}
+                        title={`Increase stock for ${product.name}`}
+                        onClick={() => onAdjustStock(product, 1)}
+                      >
+                        +
+                      </button>
+                    </div>
                   </td>
                   <td>
                     <div className="row-actions">

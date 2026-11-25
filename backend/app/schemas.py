@@ -1,12 +1,12 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Product(BaseModel):
-  id: int
-  name: str
-  description: str
-  price: float
-  quantity: int
+  id: int | None = None
+  name: str = Field(min_length=1, max_length=120)
+  description: str = Field(min_length=1, max_length=240)
+  price: float = Field(ge=0)
+  quantity: int = Field(ge=0)
 
 
 class StockAdjustment(BaseModel):
@@ -14,8 +14,8 @@ class StockAdjustment(BaseModel):
 
 
 class UserCreate(BaseModel):
-  username: str
-  password: str
+  username: str = Field(min_length=2, max_length=64)
+  password: str = Field(min_length=4, max_length=128)
 
 
 class UserOut(BaseModel):

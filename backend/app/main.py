@@ -1,14 +1,13 @@
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
-# pyrefly: ignore[missing-import]
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from . import auth, db_models
-from .database import engine, get_db, session as SessionLocal
+from .database import engine, get_db
 from .schemas import Product, StockAdjustment, Token, UserCreate, UserOut
 
 app = FastAPI()
@@ -30,26 +29,8 @@ db_models.Base.metadata.create_all(bind=engine)
 
 
 @app.get("/")
-def greet():
-  return "welcome 1st page"
-
-
-products_list = []
-
-
-def init_db():
-  db = SessionLocal()
-  try:
-    count = db.query(db_models.Product).count()
-    if count == 0:
-      for product in products_list:
-        db.add(db_models.Product(**product.model_dump()))
-    db.commit()
-  finally:
-    db.close()
-
-
-init_db()
+def health():
+  return {"status": "ok"}
 
 
 @app.post(
@@ -195,9 +176,23 @@ def add_item(
     db: Session = Depends(get_db),
     _: db_models.User = Depends(auth.get_current_user),
 ):
-  db.add(db_models.Product(**product.model_dump()))
+  data = product.model_dump(exclude_none=True)
+  if product.id is not None:
+    existing = (
+        db.query(db_models.Product)
+        .filter(db_models.Product.id == product.id)
+        .first()
+    )
+    if existing:
+      raise HTTPException(
+          status_code=status.HTTP_409_CONFLICT,
+          detail=f"Product with id {product.id} already exists",
+      )
+  db_product = db_models.Product(**data)
+  db.add(db_product)
   db.commit()
-  return product
+  db.refresh(db_product)
+  return db_product
 
 
 @app.put("/product")

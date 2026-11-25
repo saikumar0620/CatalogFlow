@@ -26,7 +26,7 @@ export default function StatsGrid({
       label: 'Stock value',
       icon: 'trend',
       tone: 'peach',
-      value: `  ₹ ${stockValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+      value: `₹${stockValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
       foot: 'Based on unit price',
     },
     {
