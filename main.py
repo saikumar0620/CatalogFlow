@@ -42,15 +42,18 @@ def products(db: Session = Depends(get_db)):
   return db_products
 
 @app.get("/product/{id}")
-def get_item_by_id(id:int):
-  for product in products_list:
-     if product.id == id:
-       return product
-  return "product not found"
+def get_item_by_id(id:int,db: Session = Depends(get_db)):
+    db_product=db.query(database_model.Product).filter(database_model.Product.id== id).first()
+    if db_product:
+      return db_product
+    db.commit()
+    return "product not found"
+  
 
 @app.post("/product")
-def add_item(product: Product):
-  products_list.append(product)
+def add_item(product: Product,db: Session = Depends(get_db)):
+  db.add(database_model.Product(**product.model_dump()))
+  db.commit()
   return product
 
 @app.put("/product")
