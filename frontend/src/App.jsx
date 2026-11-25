@@ -108,9 +108,9 @@ function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#top" aria-label="Stockroom home">
+        <a className="brand" href="#top" aria-label="Product Inventory Console home">
           <span className="brand-mark"><Icon name="box" size={20} /></span>
-          <span>stockroom<span className="brand-period">.</span></span>
+          <span>inventory<span className="brand-period">.</span></span>
         </a>
         <div className="side-label">WORKSPACE</div>
         <button className="nav-item active"><span className="nav-icon"><Icon name="layers" /></span>Inventory<span className="nav-count">{products.length}</span></button>
@@ -155,7 +155,7 @@ function App() {
             </tbody></table></div>
             <div className="catalog-footer"><span>Showing <strong>{visibleProducts.length}</strong> of <strong>{products.length}</strong> products</span><span className="live-indicator"><i /> Live inventory</span></div>
           </section>
-          <footer className="page-footer">Stockroom <span>·</span> Inventory management made simple</footer>
+          <footer className="page-footer">Product Inventory Console <span>·</span> Inventory management made simple</footer>
         </section>
       </main>
 
