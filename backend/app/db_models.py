@@ -1,22 +1,26 @@
-from sqlalchemy import Column, Float, Integer, String
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Float, Integer, String
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+  pass
 
 
 class Product(Base):
   __tablename__ = "product"
 
-  id = Column(Integer, primary_key=True, index=True)
-  name = Column(String)
-  description = Column(String)
-  price = Column(Float)
-  quantity = Column(Integer)
+  id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+  name: Mapped[str] = mapped_column(String)
+  description: Mapped[str] = mapped_column(String)
+  price: Mapped[float] = mapped_column(Float)
+  quantity: Mapped[int] = mapped_column(Integer)
 
 
 class User(Base):
   __tablename__ = "users"
 
-  id = Column(Integer, primary_key=True, index=True)
-  username = Column(String, unique=True, index=True, nullable=False)
-  hashed_password = Column(String, nullable=False)
+  id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+  username: Mapped[str] = mapped_column(
+      String, unique=True, index=True, nullable=False
+  )
+  hashed_password: Mapped[str] = mapped_column(String, nullable=False)
