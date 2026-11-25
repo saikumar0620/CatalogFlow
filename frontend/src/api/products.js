@@ -1,4 +1,4 @@
-const API = import.meta.env.VITE_API_URL || '/api'
+const API = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '')
 const TOKEN_KEY = 'catalogflow_token'
 
 export function getToken() {
