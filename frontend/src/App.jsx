@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchCurrentUser, getToken, request, setToken } from './api/products'
+import { fetchCurrentUser, getToken, logoutUser, request, setToken } from './api/products'
 import AuthModal from './components/auth/AuthModal'
 import Icon from './components/common/Icon'
 import ToastStack from './components/common/ToastStack'
@@ -158,8 +158,8 @@ function App() {
     }
   }
 
-  function handleLogout() {
-    setToken('')
+  async function handleLogout() {
+    await logoutUser()
     setUser(null)
     addToast('Signed out.', 'info')
   }

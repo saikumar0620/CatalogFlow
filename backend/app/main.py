@@ -3,12 +3,20 @@ from typing import Literal
 from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from . import auth, db_models
 from .database import engine, get_db
-from .schemas import Product, StockAdjustment, Token, UserCreate, UserOut
+from .schemas import (
+    AuthResponse,
+    Product,
+    RefreshRequest,
+    StockAdjustment,
+    Token,
+    UserCreate,
+    UserOut,
+)
 
 app = FastAPI()
 app.add_middleware(
@@ -28,6 +36,28 @@ app.add_middleware(
 db_models.Base.metadata.create_all(bind=engine)
 
 
+def _ensure_user_columns() -> None:
+  """Ensure new name/email columns exist on pre-existing users tables."""
+  with engine.begin() as conn:
+    conn.execute(
+        text("ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(80)")
+    )
+    conn.execute(
+        text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(120)")
+    )
+    conn.execute(
+        text("ALTER TABLE users ALTER COLUMN username DROP NOT NULL")
+    )
+    conn.execute(
+        text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users (email)"
+        )
+    )
+
+
+_ensure_user_columns()
+
+
 @app.get("/")
 def health():
   return {"status": "ok"}
@@ -35,28 +65,30 @@ def health():
 
 @app.post(
     "/auth/register",
-    response_model=UserOut,
+    response_model=AuthResponse,
     status_code=status.HTTP_201_CREATED,
 )
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
   existing = (
       db.query(db_models.User)
-      .filter(db_models.User.username == user.username)
+      .filter(db_models.User.email == user.email)
       .first()
   )
   if existing:
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
-        detail="Username already registered",
+        detail="An account with this email already exists",
     )
   db_user = db_models.User(
-      username=user.username,
+      name=user.name,
+      email=user.email,
       hashed_password=auth.hash_password(user.password),
   )
   db.add(db_user)
   db.commit()
   db.refresh(db_user)
-  return db_user
+  tokens = auth.issue_token_pair(db, db_user)
+  return {**tokens, "user": db_user}
 
 
 @app.post("/auth/login", response_model=Token)
@@ -64,9 +96,16 @@ def login_user(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
+  raw_identifier = form_data.username.strip()
+  normalized_email = raw_identifier.lower()
   user = (
       db.query(db_models.User)
-      .filter(db_models.User.username == form_data.username)
+      .filter(
+          or_(
+              db_models.User.email == normalized_email,
+              db_models.User.username == raw_identifier,
+          )
+      )
       .first()
   )
   if not user or not auth.verify_password(
@@ -74,11 +113,21 @@ def login_user(
   ):
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Incorrect username or password",
+        detail="Incorrect email or password",
         headers={"WWW-Authenticate": "Bearer"},
     )
-  access_token = auth.create_access_token(subject=user.username)
-  return {"access_token": access_token, "token_type": "bearer"}
+  return auth.issue_token_pair(db, user)
+
+
+@app.post("/auth/refresh", response_model=Token)
+def refresh_tokens(payload: RefreshRequest, db: Session = Depends(get_db)):
+  return auth.rotate_refresh_token(db, payload.refresh_token)
+
+
+@app.post("/auth/logout")
+def logout_user(payload: RefreshRequest, db: Session = Depends(get_db)):
+  auth.revoke_refresh_token(db, payload.refresh_token)
+  return {"detail": "Logged out"}
 
 
 @app.get("/auth/me", response_model=UserOut)

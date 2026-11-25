@@ -4,8 +4,10 @@ import Icon from '../common/Icon'
 
 export default function AuthModal({ open, onClose, onSuccess }) {
   const [mode, setMode] = useState('login')
-  const [username, setUsername] = useState('')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -13,20 +15,45 @@ export default function AuthModal({ open, onClose, onSuccess }) {
 
   const isRegister = mode === 'register'
 
+  function resetFields() {
+    setName('')
+    setEmail('')
+    setPassword('')
+    setConfirmPassword('')
+  }
+
   async function handleSubmit(event) {
     event.preventDefault()
-    setSubmitting(true)
     setError('')
-    const trimmedUser = username.trim()
+
+    const trimmedEmail = email.trim()
+    if (isRegister && password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+
+    setSubmitting(true)
     try {
+      let signedInUser
       if (isRegister) {
-        await registerUser(trimmedUser, password)
+        const data = await registerUser({
+          name: name.trim(),
+          email: trimmedEmail,
+          password,
+          confirmPassword,
+        })
+        signedInUser = data.user
+      } else {
+        await loginUser(trimmedEmail, password)
+        signedInUser = await fetchCurrentUser()
       }
-      await loginUser(trimmedUser, password)
-      const user = await fetchCurrentUser()
-      setUsername('')
-      setPassword('')
-      onSuccess(user, isRegister ? 'Account created and signed in.' : `Signed in as ${user.username}.`)
+
+      resetFields()
+      const displayName = signedInUser.name || signedInUser.email || signedInUser.username
+      onSuccess(
+        signedInUser,
+        isRegister ? `Welcome, ${displayName}! Your account is ready.` : `Signed in as ${displayName}.`,
+      )
       onClose()
     } catch (err) {
       setError(err.message || 'Authentication failed.')
@@ -54,15 +81,30 @@ export default function AuthModal({ open, onClose, onSuccess }) {
         </div>
 
         <form onSubmit={handleSubmit} className="product-form">
+          {isRegister && (
+            <label>
+              Name
+              <input
+                required
+                autoFocus
+                minLength="2"
+                maxLength="80"
+                placeholder="Enter your full name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </label>
+          )}
           <label>
-            Username
+            {isRegister ? 'Email' : 'Email or username'}
             <input
               required
-              autoFocus
-              minLength="2"
-              placeholder="Enter username"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
+              autoFocus={!isRegister}
+              type={isRegister ? 'email' : 'text'}
+              maxLength="120"
+              placeholder={isRegister ? 'you@example.com' : 'you@example.com'}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
             />
           </label>
           <label>
@@ -70,12 +112,25 @@ export default function AuthModal({ open, onClose, onSuccess }) {
             <input
               required
               type="password"
-              minLength="4"
+              minLength={isRegister ? 6 : 4}
               placeholder="Enter password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
+          {isRegister && (
+            <label>
+              Confirm password
+              <input
+                required
+                type="password"
+                minLength="6"
+                placeholder="Re-enter password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+              />
+            </label>
+          )}
           {error && <p className="form-error">{error}</p>}
           <div className="modal-actions" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <button
