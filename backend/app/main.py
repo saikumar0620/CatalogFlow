@@ -20,6 +20,7 @@ app.add_middleware(
         "http://localhost:4173",
         "http://127.0.0.1:4173",
         "https://catalog-flow-z6qp.vercel.app",
+        "https://catalog-flow-syiu.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
