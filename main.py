@@ -1,9 +1,9 @@
-from fastapi import FastAPI,Depends
+from fastapi import Depends, FastAPI
 from models import Product
-from database import session,engine
-from sqlalchemy.orm import session
+from database import engine, session as SessionLocal
+from sqlalchemy.orm import Session
 import database_model
-app=FastAPI()
+app = FastAPI()
 database_model.Base.metadata.create_all(bind=engine)
 @app.get("/")
 def greet():
@@ -17,26 +17,29 @@ products_list=[
 ]
 
 def get_db():
-  db=session()
+  db = SessionLocal()
   try:
     yield db
   finally:
     db.close()
 
 def init_db():
-  db=session()
-  count=db.query(database_model.Product).count
-  if count ==0:
-    for product in products_list:
-      db.add(database_model.Product(**product.model_dump()))
-  db.commit()
+  db = SessionLocal()
+  try:
+    count = db.query(database_model.Product).count()
+    if count == 0:
+      for product in products_list:
+        db.add(database_model.Product(**product.model_dump()))
+    db.commit()
+  finally:
+    db.close()
+
 init_db()
 
 @app.get("/products")
-def products(db:session=Depends(get_db)):
-  db=session()
-  db.query()
-  return products_list
+def products(db: Session = Depends(get_db)):
+  db_products = db.query(database_model.Product).all()
+  return db_products
 
 @app.get("/product/{id}")
 def get_item_by_id(id:int):
