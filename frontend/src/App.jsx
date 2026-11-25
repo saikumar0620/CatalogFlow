@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const API = import.meta.env.VITE_API_URL || '/api'
 const emptyForm = { name: '', description: '', price: '', quantity: '' }
@@ -24,6 +24,8 @@ function Icon({ name, size = 18 }) {
     trash: <><path d="M3 6h18M8 6V4h8v2m3 0-1 14H6L5 6m4 4v6m6-6v6" /></>,
     close: <><path d="m18 6-12 12M6 6l12 12" /></>,
     refresh: <><path d="M20 7v5h-5M4 17v-5h5" /><path d="M5.6 9A7 7 0 0 1 18 6.5L20 12M4 12l2 5.5A7 7 0 0 0 18.4 15" /></>,
+    check: <><path d="m5 12 4.5 4.5L19 7" /></>,
+    alert: <><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></>,
   }
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
@@ -36,19 +38,48 @@ function App() {
   const [dialog, setDialog] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [toasts, setToasts] = useState([])
+  const toastIdRef = useRef(0)
+  const toastTimersRef = useRef(new Map())
 
-  const loadProducts = useCallback(async () => {
+  const dismissToast = useCallback((id) => {
+    const timer = toastTimersRef.current.get(id)
+    if (timer) {
+      clearTimeout(timer)
+      toastTimersRef.current.delete(id)
+    }
+    setToasts((prev) => prev.filter((toast) => toast.id !== id))
+  }, [])
+
+  const addToast = useCallback((message, type = 'success') => {
+    const id = ++toastIdRef.current
+    setToasts((prev) => [...prev.slice(-3), { id, message, type }])
+    const timer = setTimeout(() => {
+      toastTimersRef.current.delete(id)
+      setToasts((prev) => prev.filter((toast) => toast.id !== id))
+    }, 3500)
+    toastTimersRef.current.set(id, timer)
+  }, [])
+
+  useEffect(() => () => {
+    toastTimersRef.current.forEach((timer) => clearTimeout(timer))
+    toastTimersRef.current.clear()
+  }, [])
+
+  const loadProducts = useCallback(async ({ notify = false } = {}) => {
     setLoading(true)
     setError('')
     try {
       const data = await request('/products')
       setProducts(Array.isArray(data) ? data : [])
+      if (notify) addToast('Inventory refreshed.', 'info')
     } catch (err) {
       setError('Could not connect to the inventory API. Make sure FastAPI is running at 127.0.0.1:8000.')
+      if (notify) addToast('Failed to refresh inventory.', 'error')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [addToast])
 
   useEffect(() => { loadProducts() }, [loadProducts])
 
@@ -81,15 +112,19 @@ function App() {
       quantity: Number(form.quantity),
     }
     try {
-      await request(dialog.mode === 'edit' ? `/product?id=${body.id}` : '/product', {
-        method: dialog.mode === 'edit' ? 'PUT' : 'POST',
+      const isEdit = dialog.mode === 'edit'
+      await request(isEdit ? `/product?id=${body.id}` : '/product', {
+        method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       setDialog(null)
+      addToast(isEdit ? `Updated "${body.name}".` : `Added "${body.name}" to inventory.`, 'success')
       await loadProducts()
     } catch (err) {
-      setError(err.message || 'Could not save product. Please try again.')
+      const msg = err.message || 'Could not save product. Please try again.'
+      setError(msg)
+      addToast(msg, 'error')
     } finally {
       setSaving(false)
     }
@@ -99,9 +134,12 @@ function App() {
     if (!window.confirm(`Delete ${product.name} from inventory?`)) return
     try {
       await request(`/product/${product.id}`, { method: 'DELETE' })
+      addToast(`Deleted "${product.name}" from inventory.`, 'info')
       await loadProducts()
     } catch (err) {
-      setError(err.message || 'Could not delete product. Please try again.')
+      const msg = err.message || 'Could not delete product. Please try again.'
+      setError(msg)
+      addToast(msg, 'error')
     }
   }
 
@@ -142,7 +180,7 @@ function App() {
           </div>
 
           <section className="catalog-card">
-            <div className="catalog-header"><div><h2>Product catalog</h2><p>A complete list of the items in your inventory.</p></div><button className="icon-button refresh-button" title="Refresh inventory" onClick={loadProducts}><Icon name="refresh" /></button></div>
+            <div className="catalog-header"><div><h2>Product catalog</h2><p>A complete list of the items in your inventory.</p></div><button className="icon-button refresh-button" title="Refresh inventory" onClick={() => loadProducts({ notify: true })}><Icon name="refresh" /></button></div>
             <div className="catalog-toolbar"><div className="search-box"><Icon name="search" size={17} /><input aria-label="Search products" placeholder="Search products..." value={query} onChange={(event) => setQuery(event.target.value)} /><kbd>⌘ K</kbd></div><span className="results-count">{visibleProducts.length} {visibleProducts.length === 1 ? 'product' : 'products'}</span></div>
             <div className="table-scroll"><table><thead><tr><th>PRODUCT</th><th>DESCRIPTION</th><th>UNIT PRICE</th><th>IN STOCK</th><th className="actions-heading">ACTIONS</th></tr></thead><tbody>
               {loading ? <tr><td className="empty-state" colSpan="5">Loading your inventory…</td></tr> : visibleProducts.length === 0 ? <tr><td className="empty-state" colSpan="5">{query ? 'No products match your search.' : 'No products yet. Add your first product to get started.'}</td></tr> : visibleProducts.map((product, index) => <tr key={product.id}>
@@ -160,6 +198,22 @@ function App() {
       </main>
 
       {dialog && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setDialog(null) }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-heading"><div><div className="eyebrow">PRODUCT DETAILS</div><h2 id="modal-title">{dialog.mode === 'edit' ? 'Edit product' : 'Add a product'}</h2></div><button className="icon-button" onClick={() => setDialog(null)} aria-label="Close"><Icon name="close" /></button></div><form onSubmit={saveProduct} className="product-form"><label>Product name<input required maxLength="120" autoFocus placeholder="e.g. Wireless headphones" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Description<input required maxLength="240" placeholder="Short product description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label><div className="form-row"><label>Unit price<input required min="0" step="0.01" type="number" placeholder="0.00" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} /></label><label>Quantity<input required min="0" step="1" type="number" placeholder="0" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} /></label></div>{error && <p className="form-error">{error}</p>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setDialog(null)}>Cancel</button><button className="primary-button" disabled={saving}>{saving ? 'Saving…' : dialog.mode === 'edit' ? 'Save changes' : 'Add product'}</button></div></form></section></div>}
+
+      {toasts.length > 0 && (
+        <div className="toast-stack" role="status" aria-live="polite">
+          {toasts.map((toast) => (
+            <div key={toast.id} className={`toast toast-${toast.type}`}>
+              <span className="toast-badge">
+                <Icon name={toast.type === 'error' ? 'alert' : toast.type === 'info' ? 'refresh' : 'check'} size={14} />
+              </span>
+              <span className="toast-message">{toast.message}</span>
+              <button className="toast-close" onClick={() => dismissToast(toast.id)} aria-label="Dismiss notification">
+                <Icon name="close" size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
