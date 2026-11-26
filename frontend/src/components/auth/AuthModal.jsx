@@ -112,7 +112,7 @@ export default function AuthModal({ open, onClose, onSuccess }) {
             <input
               required
               type="password"
-              minLength={isRegister ? 6 : 4}
+              minLength={isRegister ? 8 : 4}
               placeholder="Enter password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -124,7 +124,7 @@ export default function AuthModal({ open, onClose, onSuccess }) {
               <input
                 required
                 type="password"
-                minLength="6"
+                minLength="8"
                 placeholder="Re-enter password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}

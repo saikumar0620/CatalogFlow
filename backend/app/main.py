@@ -47,6 +47,9 @@ if os.getenv("AUTO_MIGRATE", "false").lower() == "true":
               "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users (email)"
           )
       )
+      conn.execute(
+          text("ALTER TABLE product ALTER COLUMN price TYPE NUMERIC(10, 2)")
+      )
 
   _ensure_user_columns()
 

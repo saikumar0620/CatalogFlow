@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -6,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from .. import auth, db_models
 from ..database import get_db
-from ..schemas import Product, StockAdjustment
+from ..schemas import ProductCreate, ProductOut, StockAdjustment
 
 router = APIRouter(tags=["products"])
 
@@ -18,15 +19,15 @@ SORT_FIELDS = {
 }
 
 
-@router.get("/products")
+@router.get("/products", response_model=list[ProductOut])
 def products(
     response: Response,
     search: str | None = Query(
         default=None,
         description="Case-insensitive search in product name or description",
     ),
-    min_price: float | None = Query(default=None, ge=0),
-    max_price: float | None = Query(default=None, ge=0),
+    min_price: Decimal | None = Query(default=None, ge=0),
+    max_price: Decimal | None = Query(default=None, ge=0),
     in_stock: bool | None = Query(
         default=None,
         description="Filter by stock availability (true: quantity > 0, false: quantity == 0)",
@@ -88,40 +89,32 @@ def get_product_or_404(db: Session, product_id: int) -> db_models.Product:
   return db_product
 
 
-@router.get("/product/{id}")
+@router.get("/product/{id}", response_model=ProductOut)
 def get_item_by_id(id: int, db: Session = Depends(get_db)):
   return get_product_or_404(db, id)
 
 
-@router.post("/product", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/product",
+    response_model=ProductOut,
+    status_code=status.HTTP_201_CREATED,
+)
 def add_item(
-    product: Product,
+    product: ProductCreate,
     db: Session = Depends(get_db),
     _: db_models.User = Depends(auth.get_current_user),
 ):
-  data = product.model_dump(exclude_none=True)
-  if product.id is not None:
-    existing = (
-        db.query(db_models.Product)
-        .filter(db_models.Product.id == product.id)
-        .first()
-    )
-    if existing:
-      raise HTTPException(
-          status_code=status.HTTP_409_CONFLICT,
-          detail=f"Product with id {product.id} already exists",
-      )
-  db_product = db_models.Product(**data)
+  db_product = db_models.Product(**product.model_dump())
   db.add(db_product)
   db.commit()
   db.refresh(db_product)
   return db_product
 
 
-@router.put("/product")
+@router.put("/product", response_model=ProductOut)
 def update_item(
     id: int,
-    product: Product,
+    product: ProductCreate,
     db: Session = Depends(get_db),
     _: db_models.User = Depends(auth.get_current_user),
 ):
@@ -147,7 +140,7 @@ def remove_item(
   return {"detail": f"Product {id} deleted"}
 
 
-@router.patch("/product/{id}/stock")
+@router.patch("/product/{id}/stock", response_model=ProductOut)
 def adjust_stock(
     id: int,
     adjustment: StockAdjustment,

@@ -1,3 +1,4 @@
+from decimal import Decimal
 import re
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -5,12 +6,26 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-class Product(BaseModel):
-  id: int | None = None
+class ProductCreate(BaseModel):
   name: str = Field(min_length=1, max_length=120)
   description: str = Field(min_length=1, max_length=240)
-  price: float = Field(ge=0)
+  price: Decimal = Field(ge=0, max_digits=10, decimal_places=2)
   quantity: int = Field(ge=0)
+
+  @field_validator("name", "description", mode="before")
+  @classmethod
+  def strip_whitespace(cls, value: object) -> object:
+    return value.strip() if isinstance(value, str) else value
+
+
+class ProductOut(BaseModel):
+  id: int
+  name: str
+  description: str
+  price: Decimal
+  quantity: int
+
+  model_config = ConfigDict(from_attributes=True)
 
 
 class StockAdjustment(BaseModel):
@@ -20,8 +35,8 @@ class StockAdjustment(BaseModel):
 class UserCreate(BaseModel):
   name: str = Field(min_length=2, max_length=80)
   email: str = Field(min_length=5, max_length=120)
-  password: str = Field(min_length=6, max_length=128)
-  confirm_password: str = Field(min_length=6, max_length=128)
+  password: str = Field(min_length=8, max_length=128)
+  confirm_password: str = Field(min_length=8, max_length=128)
 
   @field_validator("name")
   @classmethod

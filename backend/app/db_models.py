@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -14,7 +15,7 @@ class Product(Base):
   id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
   name: Mapped[str] = mapped_column(String)
   description: Mapped[str] = mapped_column(String)
-  price: Mapped[float] = mapped_column(Float)
+  price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
   quantity: Mapped[int] = mapped_column(Integer)
 
 
