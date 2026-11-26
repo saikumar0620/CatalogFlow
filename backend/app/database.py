@@ -14,6 +14,11 @@ def _load_env_file(env_path: Path) -> None:
       continue
     key, value = line.split("=", 1)
     key = key.strip()
+    if "#" in value and not (
+        (value.startswith('"') and value.endswith('"'))
+        or (value.startswith("'") and value.endswith("'"))
+    ):
+      value = value.split("#", 1)[0]
     value = value.strip().strip('"').strip("'")
     if key:
       os.environ.setdefault(key, value)

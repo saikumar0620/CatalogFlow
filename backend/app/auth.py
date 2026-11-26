@@ -20,10 +20,15 @@ _raw_secret = os.getenv("JWT_SECRET_KEY")
 if not _raw_secret:
   raise RuntimeError("JWT_SECRET_KEY is not set. Add it to backend/.env.")
 
+def _parse_int_env(name: str, fallback: str) -> int:
+  raw = os.getenv(name, fallback).split("#")[0].strip()
+  return int(raw)
+
+
 SECRET_KEY: str = _raw_secret
-ACCESS_TOKEN_EXPIRE_SECONDS = int(os.getenv("JWT_EXPIRE_SECONDS", "900"))
-REFRESH_TOKEN_EXPIRE_SECONDS = int(
-    os.getenv("JWT_REFRESH_EXPIRE_SECONDS", "604800")
+ACCESS_TOKEN_EXPIRE_SECONDS = _parse_int_env("JWT_EXPIRE_SECONDS", "900")
+REFRESH_TOKEN_EXPIRE_SECONDS = _parse_int_env(
+    "JWT_REFRESH_EXPIRE_SECONDS", "604800"
 )
 if ACCESS_TOKEN_EXPIRE_SECONDS <= 0 or REFRESH_TOKEN_EXPIRE_SECONDS <= 0:
   raise RuntimeError("Token expiration settings must be positive integers.")
